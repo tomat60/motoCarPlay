@@ -25,12 +25,39 @@ identical. Verify electrically and from controlled captures on the target bike.
 
 During reverse-engineering the adapter is **receive-only**:
 
-1. Configure the Linux SocketCAN interface in listen-only mode.
-2. sensors/harley_can.py refuses to start unless listen-only is visible in
-   ip -details link show.
-3. The bridge contains no bus.send() call.
+1. Every supported backend must enter an explicit listen-only mode.
+2. SocketCAN is verified through ip -details; gs_usb capability is checked
+   before start; SLCAN is opened with its listen-only command.
+3. The bridge has no application-level CAN transmit path.
 4. Do not add a 120-ohm terminator across the motorcycle bus by default.
 5. Do not remove the OEM cluster during this phase.
+## macOS / CANable or candleLight setup
+
+The bridge now supports a Mac directly. For a CANable/candleLight-compatible
+adapter using gs_usb firmware:
+
+    brew install libusb
+    python3 -m pip install "python-can[gs-usb]" python-socketio
+
+Start the capture with device index 0:
+
+    python3 sensors/harley_can.py --interface gs_usb --channel 0 \
+      --capture ~/harley-can/ignition-on.jsonl
+
+The gs_usb path does not trust software policy alone. Before attaching, it
+checks that the adapter firmware advertises the GS_CAN_MODE_LISTEN_ONLY
+capability and refuses to start otherwise. It then explicitly starts the
+controller in listen-only mode. This avoids ACK/transmit participation during
+reverse-engineering.
+
+SLCAN firmware is also supported as a fallback:
+
+    python3 sensors/harley_can.py --interface slcan \
+      --channel /dev/cu.usbmodemXXXX@115200 \
+      --capture ~/harley-can/ignition-on.jsonl
+
+The SLCAN backend requests its protocol-level listen-only mode.
+
 ## Pi / SocketCAN setup
 
 The exact command depends on the chosen CAN interface. For a native SocketCAN
@@ -68,6 +95,30 @@ The first bridge only promotes evidence-backed values:
 Speed (0x521 in public captures) and RPM are deliberately **not guessed** yet.
 They become first-class speedKph / rpm only after repeatable CX captures prove
 the frame, byte order and scaling.
+
+## Capture analysis
+
+The analyzer works offline, so all reverse-engineering can be prepared before
+hardware arrives. It tests byte values plus adjacent 16-bit little- and
+big-endian candidates.
+
+List traffic present in one capture:
+
+    python3 sensors/harley_can_analyze.py summary idle.jsonl
+
+Compare two controlled states, for example low beam versus high beam:
+
+    python3 sensors/harley_can_analyze.py diff low.jsonl high.jsonl
+
+For numeric signals, provide at least three labeled captures. The analyzer
+ranks correlation and also estimates the linear conversion formula:
+
+    python3 sensors/harley_can_analyze.py series \
+      1500=rpm-1500.jsonl 2000=rpm-2000.jsonl \
+      2500=rpm-2500.jsonl 3000=rpm-3000.jsonl
+
+The same workflow applies to speed captures such as 0, 20, 40, 60 and 80 km/h.
+
 ## Controlled capture plan
 
 Use separate files and change one variable at a time:

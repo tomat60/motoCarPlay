@@ -66,7 +66,7 @@ def frame_record(arbitration_id: int, data: bytes) -> dict[str, Any]:
         "data_hex": data.hex(" ").upper(),
     }
 
-def require_listen_only(channel: str, allow_active: bool) -> None:
+def require_socketcan_listen_only(channel: str, allow_active: bool) -> None:
     """Fail closed unless SocketCAN reports listen-only mode."""
     if allow_active:
         print(
@@ -105,9 +105,93 @@ def open_capture(path: str | None):
     return capture_path.open("a", encoding="utf-8", buffering=1)
 
 
+def iter_can_frames(interface: str, channel: str | None, allow_active: bool):
+    """Yield arbitration ID and payload while keeping the bus receive-only."""
+    selected = interface
+    if selected == "auto":
+        selected = "gs_usb" if sys.platform == "darwin" else "socketcan"
+
+    if selected == "socketcan":
+        actual_channel = channel or "can0"
+        require_socketcan_listen_only(actual_channel, allow_active)
+        import can  # type: ignore
+
+        bus = can.Bus(interface="socketcan", channel=actual_channel)
+        try:
+            for message in bus:
+                yield int(message.arbitration_id), bytes(message.data)
+        finally:
+            bus.shutdown()
+        return
+
+    if selected == "slcan":
+        if not channel:
+            raise RuntimeError("--channel is required for slcan, e.g. /dev/cu.usbmodem...@115200")
+        import can  # type: ignore
+
+        bus = can.Bus(
+            interface="slcan",
+            channel=channel,
+            bitrate=CAN_BITRATE,
+            listen_only=not allow_active,
+        )
+        try:
+            for message in bus:
+                yield int(message.arbitration_id), bytes(message.data)
+        finally:
+            bus.shutdown()
+        return
+
+    if selected == "gs_usb":
+        from gs_usb.constants import GS_CAN_MODE_LISTEN_ONLY  # type: ignore
+        from gs_usb.gs_usb import GsUsb  # type: ignore
+        from gs_usb.gs_usb_frame import GsUsbFrame  # type: ignore
+
+        try:
+            index = int(channel) if channel is not None else 0
+        except ValueError as exc:
+            raise RuntimeError("gs_usb --channel must be a numeric device index") from exc
+
+        devices = GsUsb.scan()
+        if index < 0 or index >= len(devices):
+            raise RuntimeError(f"gs_usb device index {index} not found; detected {len(devices)} device(s)")
+        dev = devices[index]
+
+        if not allow_active and not (dev.device_capability.feature & GS_CAN_MODE_LISTEN_ONLY):
+            raise RuntimeError("gs_usb firmware does not advertise listen-only mode; refusing to attach")
+
+        if not dev.set_bitrate(CAN_BITRATE):
+            raise RuntimeError(f"failed to configure gs_usb bitrate {CAN_BITRATE}")
+
+        flags = 0 if allow_active else GS_CAN_MODE_LISTEN_ONLY
+        if not allow_active:
+            print("[harley-can] gs_usb listen-only mode confirmed by device capability")
+        dev.start(flags)
+        try:
+            while True:
+                frame = GsUsbFrame()
+                if dev.read(frame=frame, timeout_ms=1000):
+                    payload = bytes(frame.data[: frame.can_dlc])
+                    yield int(frame.arbitration_id), payload
+        finally:
+            dev.stop()
+        return
+
+    raise RuntimeError(f"unsupported CAN interface: {selected}")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--channel", default="can0")
+    parser.add_argument(
+        "--interface",
+        choices=("auto", "socketcan", "gs_usb", "slcan"),
+        default="auto",
+        help="auto uses gs_usb on macOS and SocketCAN elsewhere",
+    )
+    parser.add_argument(
+        "--channel",
+        help="SocketCAN name, gs_usb device index, or SLCAN serial port",
+    )
     parser.add_argument("--server", default=LIVI_URL)
     parser.add_argument("--capture", help="append every received CAN frame to JSONL")
     parser.add_argument(
@@ -127,18 +211,11 @@ def main() -> int:
     args = build_parser().parse_args()
 
     try:
-        require_listen_only(args.channel, args.unsafe_allow_active_can)
-    except (RuntimeError, FileNotFoundError) as exc:
-        print(f"[harley-can] SAFETY STOP: {exc}", file=sys.stderr)
-        return 2
-
-    try:
-        import can  # type: ignore
         import socketio  # type: ignore
     except ImportError as exc:
         print(
             "[harley-can] missing dependency. Install: "
-            "python3 -m pip install python-can python-socketio",
+            "python3 -m pip install python-socketio",
             file=sys.stderr,
         )
         print(f"[harley-can] import error: {exc}", file=sys.stderr)
@@ -149,25 +226,32 @@ def main() -> int:
 
     try:
         sio.connect(args.server)
-        bus = can.Bus(interface="socketcan", channel=args.channel)
+        selected = args.interface
+        if selected == "auto":
+            selected = "gs_usb" if sys.platform == "darwin" else "socketcan"
+        display_channel = args.channel if args.channel is not None else ("0" if selected == "gs_usb" else "can0")
         print(
-            f"[harley-can] listening on {args.channel} @ expected {CAN_BITRATE} bit/s; "
-            "TX path is intentionally absent"
+            f"[harley-can] listening via {selected}:{display_channel} @ {CAN_BITRATE} bit/s; "
+            "receive-only policy enabled"
         )
 
-        for message in bus:
-            data = bytes(message.data)
-            record = frame_record(int(message.arbitration_id), data)
+        for arbitration_id, data in iter_can_frames(
+            args.interface, args.channel, args.unsafe_allow_active_can
+        ):
+            record = frame_record(arbitration_id, data)
             if capture:
                 capture.write(json.dumps(record, separators=(",", ":")) + "\n")
 
-            patch = decode_frame(int(message.arbitration_id), data)
+            patch = decode_frame(arbitration_id, data)
             if args.emit_raw:
-                patch["can"] = {"id": int(message.arbitration_id), "data": list(data)}
+                patch["can"] = {"id": arbitration_id, "data": list(data)}
             if patch:
                 patch["ts"] = int(time.time() * 1000)
                 sio.emit("telemetry:push", patch)
 
+    except (RuntimeError, ImportError) as exc:
+        print(f"[harley-can] SAFETY STOP: {exc}", file=sys.stderr)
+        return 2
     except KeyboardInterrupt:
         print("\n[harley-can] stopped")
     finally:
