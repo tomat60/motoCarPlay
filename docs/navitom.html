@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NaviTom — A motorcycle display that learns your bike</title>
+  <meta name="description" content="NaviTom is a round motorcycle navigation and instrument platform designed to adapt to the bike it is connected to. Prototype in development." />
+  <style>
+    :root{color-scheme:dark;--bg:#080a0e;--panel:#11151c;--panel2:#171c24;--text:#f5f7fb;--muted:#9da8b8;--line:#27303d;--accent:#78f0c8;--accent2:#7aa8ff;--max:1180px}
+    *{box-sizing:border-box}
+    html{scroll-behavior:smooth}
+    body{margin:0;background:radial-gradient(circle at 80% 0%,#142134 0,transparent 34rem),var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    a{color:inherit;text-decoration:none}
+    .wrap{width:min(var(--max),calc(100% - 40px));margin:0 auto}
+    nav{height:76px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,.07)}
+    .brand{font-weight:800;letter-spacing:-.04em;font-size:22px}.brand span{color:var(--accent)}
+    nav .status{font-size:13px;color:var(--muted);padding:8px 12px;border:1px solid var(--line);border-radius:999px;background:rgba(255,255,255,.03)}
+    .hero{min-height:690px;display:grid;grid-template-columns:1.05fr .95fr;gap:56px;align-items:center;padding:72px 0}
+    .eyebrow{display:inline-flex;gap:8px;align-items:center;font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin-bottom:18px}
+    h1{font-size:clamp(48px,7vw,84px);line-height:.98;letter-spacing:-.065em;margin:0 0 24px;max-width:760px}
+    .lead{font-size:clamp(19px,2.2vw,25px);line-height:1.5;color:#c4ccd8;max-width:700px;margin:0 0 32px}
+    .actions{display:flex;flex-wrap:wrap;gap:12px;margin:30px 0}
+    .btn{display:inline-flex;align-items:center;justify-content:center;min-height:50px;padding:0 20px;border-radius:14px;font-weight:750;border:1px solid var(--line);background:#151b24}
+    .btn.primary{background:var(--accent);color:#08100d;border-color:var(--accent)}
+    .fine{font-size:13px;color:var(--muted);max-width:620px}
+    .device{position:relative;display:flex;justify-content:center;align-items:center;min-height:520px}
+    .halo{position:absolute;width:430px;height:430px;border-radius:50%;background:radial-gradient(circle,rgba(120,240,200,.19),rgba(122,168,255,.08) 42%,transparent 68%);filter:blur(10px)}
+    .device img{position:relative;width:min(100%,520px);border-radius:28px;border:1px solid rgba(255,255,255,.12);box-shadow:0 30px 90px rgba(0,0,0,.55)}
+    .badge{position:absolute;right:2%;bottom:8%;max-width:220px;background:rgba(13,17,23,.92);border:1px solid var(--line);border-radius:16px;padding:14px 16px;box-shadow:0 12px 40px rgba(0,0,0,.35)}
+    .badge strong{display:block;font-size:14px;margin-bottom:4px}.badge span{font-size:12px;color:var(--muted)}
+    section{padding:88px 0;border-top:1px solid rgba(255,255,255,.07)}
+    .section-kicker{font-size:13px;text-transform:uppercase;letter-spacing:.1em;color:var(--accent);font-weight:800}
+    h2{font-size:clamp(34px,5vw,56px);line-height:1.02;letter-spacing:-.05em;margin:12px 0 18px}
+    .section-lead{font-size:19px;color:var(--muted);max-width:760px;line-height:1.6}
+    .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:36px}
+    .card{background:linear-gradient(180deg,rgba(255,255,255,.045),rgba(255,255,255,.02));border:1px solid var(--line);border-radius:20px;padding:24px;min-height:230px}
+    .num{font-size:12px;color:var(--accent);font-weight:800;letter-spacing:.1em}.card h3{font-size:22px;margin:18px 0 10px}.card p{color:var(--muted);line-height:1.6;margin:0}
+    .flow{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:38px}
+    .step{padding:18px 16px;border:1px solid var(--line);border-radius:18px;background:var(--panel);min-height:145px}.step b{display:block;margin-bottom:8px}.step small{color:var(--muted);line-height:1.5}
+    .split{display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center}
+    .screen{width:100%;border-radius:28px;border:1px solid var(--line);background:#05070a;padding:18px;box-shadow:0 24px 70px rgba(0,0,0,.35)}
+    .screen img{display:block;width:100%;border-radius:18px}
+    .truth{display:grid;gap:10px;margin-top:24px}.truth div{display:flex;gap:10px;color:#c4ccd8}.dot{width:8px;height:8px;background:var(--accent);border-radius:50%;margin-top:8px;flex:0 0 auto}
+    .founding{background:linear-gradient(135deg,rgba(120,240,200,.09),rgba(122,168,255,.07));border:1px solid var(--line);border-radius:28px;padding:40px}
+    footer{padding:34px 0 60px;color:var(--muted);font-size:13px}
+    .legal{margin-top:24px;padding-top:20px;border-top:1px solid var(--line);line-height:1.6}
+    @media(max-width:900px){.hero,.split{grid-template-columns:1fr}.hero{padding-top:42px}.device{min-height:430px}.grid3{grid-template-columns:1fr}.flow{grid-template-columns:1fr 1fr}.badge{right:0}.hero .device{grid-row:1}.hero .copy{grid-row:2}}
+    @media(max-width:560px){.wrap{width:min(var(--max),calc(100% - 24px))}.flow{grid-template-columns:1fr}.founding{padding:26px}.status{display:none}.device{min-height:330px}.badge{position:relative;right:auto;bottom:auto;margin-top:14px}.device{flex-direction:column}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <nav>
+      <div class="brand">Navi<span>Tom</span></div>
+      <div class="status">Prototype in development · founding batch not yet on sale</div>
+    </nav>
+
+    <main>
+      <div class="hero">
+        <div class="copy">
+          <div class="eyebrow">Motorcycle-native navigation + instruments</div>
+          <h1>A display that learns your bike.</h1>
+          <p class="lead">NaviTom is a round smart dashboard built around navigation, phone projection and motorcycle telemetry — with a guided AI setup designed to adapt the interface to the motorcycle it is connected to.</p>
+          <div class="actions">
+            <a class="btn primary" href="#founding">Founding batch interest</a>
+            <a class="btn" href="#how">See how it works</a>
+          </div>
+          <p class="fine">This is a real prototype programme, not a shipping product yet. We will not accept paid preorders until the physical design, target BOM, delivery path and compliance plan are validated.</p>
+        </div>
+        <div class="device">
+          <div class="halo"></div>
+          <img src="https://raw.githubusercontent.com/tomat60/motoCarPlay/main/documentation/images/motocarplay-v2-hardware.jpeg" alt="Round MotoCarPlay prototype hardware" />
+          <div class="badge"><strong>3.4-inch round reference build</strong><span>Current development platform. Final industrial design may change.</span></div>
+        </div>
+      </div>
+
+      <section>
+        <div class="section-kicker">Why NaviTom</div>
+        <h2>Less universal gadget. More motorcycle.</h2>
+        <p class="section-lead">Most motorcycle screens stop at phone mirroring. NaviTom is being designed as a model-aware instrument platform: navigation in the centre, useful bike data around it, and software profiles that improve as more motorcycles are validated.</p>
+        <div class="grid3">
+          <article class="card"><div class="num">01 · NAVIGATION</div><h3>Phone projection, shaped for a round screen</h3><p>CarPlay / Android Auto connectivity with a motorcycle-first layout instead of a rectangular car UI squeezed onto the bars.</p></article>
+          <article class="card"><div class="num">02 · TELEMETRY</div><h3>Use the bike data that actually exists</h3><p>Passive vehicle telemetry where validated, plus GPS and optional sensors. Unsupported values stay unsupported — they are never invented.</p></article>
+          <article class="card"><div class="num">03 · ADAPTATION</div><h3>Guided AI setup</h3><p>The planned setup assistant helps identify the bike, rank compatible signal mappings and configure a suitable dashboard profile. Deterministic validation decides what is safe to accept.</p></article>
+        </div>
+      </section>
+
+      <section id="how">
+        <div class="section-kicker">Setup concept</div>
+        <h2>Connect. Observe. Calibrate. Validate. Ride.</h2>
+        <p class="section-lead">The AI is a setup assistant — not an autonomous motorcycle controller. V1 keeps motorcycle CAN communication passive/read-only.</p>
+        <div class="flow">
+          <div class="step"><b>1 · Pair</b><small>Phone, NaviTom hardware and supported telemetry adapter connect.</small></div>
+          <div class="step"><b>2 · Identify</b><small>Select motorcycle make, model, year and current hardware profile.</small></div>
+          <div class="step"><b>3 · Observe</b><small>Passive signals are captured while the rider follows safe calibration prompts.</small></div>
+          <div class="step"><b>4 · Validate</b><small>Known profiles, ranges and consistency checks reject uncertain mappings.</small></div>
+          <div class="step"><b>5 · Configure</b><small>NaviTom installs the supported dashboard and records its compatibility evidence.</small></div>
+        </div>
+      </section>
+
+      <section>
+        <div class="split">
+          <div class="screen"><img src="images/dash.png" alt="Current dashboard software preview" /></div>
+          <div>
+            <div class="section-kicker">Development truth</div>
+            <h2>Built from working software, with the hard parts still visible.</h2>
+            <p class="section-lead">The software already has a Linux/Raspberry Pi projection stack and round-dashboard work. A receive-only Harley-Davidson CAN integration is being developed for the 2017 Sportster Roadster XL1200CX. Target-bike hardware capture and validation are still required.</p>
+            <div class="truth">
+              <div><span class="dot"></span><span>Round 800×800 reference display and motorcycle UI.</span></div>
+              <div><span class="dot"></span><span>CarPlay / Android Auto paths through the current platform.</span></div>
+              <div><span class="dot"></span><span>Receive-only CAN path: no application-level CAN writes in the current Harley integration.</span></div>
+              <div><span class="dot"></span><span>Compatibility will be earned model by model — not claimed from one bike.</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="founding">
+        <div class="founding">
+          <div class="section-kicker">Founding batch</div>
+          <h2>We are validating demand before taking money.</h2>
+          <p class="section-lead">The next public step is a waitlist segmented by motorcycle make/model/year, phone platform and expected price range. Paid reservations will open only after the physical prototype, manufacturing estimate, consumer terms and compliance path are ready.</p>
+          <div class="actions"><span class="btn primary">Waitlist opening after prototype gate</span></div>
+          <p class="fine">Planned first deep-validation platform: 2017 Harley-Davidson Sportster Roadster XL1200CX. Broader Sportster or other motorcycle support will be listed only when evidence exists.</p>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <strong>NaviTom</strong> · prototype product direction
+      <div class="legal">Apple and CarPlay are trademarks of Apple Inc. Android and Android Auto are trademarks of Google LLC. NaviTom is not affiliated with or endorsed by Apple or Google. Product specifications, compatibility and industrial design are not final.</div>
+    </footer>
+  </div>
+</body>
+</html>
