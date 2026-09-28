@@ -15,7 +15,7 @@ import {
 } from '../components/pages/projection/motoGraphEvents'
 import { ProjectionSensorOverlay } from '../components/pages/projection/ProjectionSensorOverlay'
 import { useLiviStore } from '../store/store'
-import { rideSample } from './ride'
+import { harleyRoadsterSample } from './harleyRoadster'
 import { emitTelemetry } from './shim'
 
 // The overlay reads MotoSettings out of the app store; seed just those.
@@ -100,8 +100,11 @@ function DemoApp() {
 
   React.useEffect(() => {
     const start = Date.now()
-    emitTelemetry(rideSample(0))
-    const id = window.setInterval(() => emitTelemetry(rideSample(Date.now() - start)), 250)
+    emitTelemetry(harleyRoadsterSample(0))
+    const id = window.setInterval(
+      () => emitTelemetry(harleyRoadsterSample(Date.now() - start)),
+      250
+    )
     return () => window.clearInterval(id)
   }, [])
 
