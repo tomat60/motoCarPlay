@@ -193,6 +193,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="SocketCAN name, gs_usb device index, or SLCAN serial port",
     )
     parser.add_argument("--server", default=LIVI_URL)
+    parser.add_argument(
+        "--no-livi",
+        action="store_true",
+        help="capture/decode locally without requiring a running LIVI Socket.IO server",
+    )
     parser.add_argument("--capture", help="append every received CAN frame to JSONL")
     parser.add_argument(
         "--emit-raw",
@@ -210,22 +215,26 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> int:
     args = build_parser().parse_args()
 
-    try:
-        import socketio  # type: ignore
-    except ImportError as exc:
-        print(
-            "[harley-can] missing dependency. Install: "
-            "python3 -m pip install python-socketio",
-            file=sys.stderr,
-        )
-        print(f"[harley-can] import error: {exc}", file=sys.stderr)
-        return 3
+    socketio = None
+    if not args.no_livi:
+        try:
+            import socketio as socketio_module  # type: ignore
+        except ImportError as exc:
+            print(
+                "[harley-can] missing dependency. Install: "
+                "python3 -m pip install python-socketio",
+                file=sys.stderr,
+            )
+            print(f"[harley-can] import error: {exc}", file=sys.stderr)
+            return 3
+        socketio = socketio_module
 
     capture = open_capture(args.capture)
-    sio = socketio.Client(reconnection=True, reconnection_attempts=0)
+    sio = socketio.Client(reconnection=True, reconnection_attempts=0) if socketio else None
 
     try:
-        sio.connect(args.server)
+        if sio:
+            sio.connect(args.server)
         selected = args.interface
         if selected == "auto":
             selected = "gs_usb" if sys.platform == "darwin" else "socketcan"
@@ -245,7 +254,7 @@ def main() -> int:
             patch = decode_frame(arbitration_id, data)
             if args.emit_raw:
                 patch["can"] = {"id": arbitration_id, "data": list(data)}
-            if patch:
+            if patch and sio:
                 patch["ts"] = int(time.time() * 1000)
                 sio.emit("telemetry:push", patch)
 
@@ -257,10 +266,11 @@ def main() -> int:
     finally:
         if capture:
             capture.close()
-        try:
-            sio.disconnect()
-        except Exception:
-            pass
+        if sio:
+            try:
+                sio.disconnect()
+            except Exception:
+                pass
 
     return 0
 

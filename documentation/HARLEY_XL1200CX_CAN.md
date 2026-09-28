@@ -58,6 +58,30 @@ SLCAN firmware is also supported as a fallback:
 
 The SLCAN backend requests its protocol-level listen-only mode.
 
+### Guided stationary capture
+
+For the first bike session, LIVI does not need to be running. The guided helper
+creates a timestamped directory, walks through one state at a time and uses the
+same receive-only bridge:
+
+    python3 sensors/harley_can_session.py --interface gs_usb --channel 0
+
+It captures baseline, high-beam, side-stand, neutral/first, idle and labeled
+1500/2000/2500/3000 RPM windows. When all required captures exist it runs the
+relevant diff and RPM-series analyses automatically.
+
+Preview the full procedure without CAN hardware:
+
+    python3 sensors/harley_can_session.py --dry-run --interface gs_usb --channel 0
+
+For ad-hoc logging without a running LIVI server, use:
+
+    python3 sensors/harley_can.py --interface gs_usb --channel 0 --no-livi \
+      --capture ~/harley-can/manual.jsonl
+
+Road-speed calibration intentionally remains outside the guided stationary
+session and should only happen after stationary decoding is clean.
+
 ## Pi / SocketCAN setup
 
 The exact command depends on the chosen CAN interface. For a native SocketCAN
