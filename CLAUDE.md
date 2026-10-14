@@ -795,3 +795,7 @@ The 4.8 V-ish dips near those events are the dongle's own **re-attach inrush**,
 not a cause. So an isolated `USB-GONE dongle` with the app healthy is real but
 does not implicate bike power — see `FAILURE-HYPOTHESES.md` § 7. Only
 *correlated* drops (multiple devices at once) point at the rail.
+
+## Cross-agent critical review
+
+@AGENTS.md
