@@ -1,0 +1,63 @@
+name: No Unicode long dashes in authored changes
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - rolepilot-product-mvp
+permissions:
+  contents: read
+jobs:
+  typography:
+    name: Check new text
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Reject forbidden Unicode punctuation in added lines
+        env:
+          BEFORE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          EVENT_TYPE: ${{ github.event_name }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os
+          import subprocess
+          import sys
+
+          def git(*args):
+              return subprocess.check_output(["git", *args], text=True, errors="replace").strip()
+
+          head = git("rev-parse", "HEAD")
+          before = os.environ.get("BEFORE_SHA", "")
+          if not before or set(before) == {"0"}:
+              base = git("hash-object", "-t", "tree", "/dev/null")
+          elif os.environ.get("EVENT_TYPE") == "pull_request":
+              base = git("merge-base", before, head)
+          else:
+              base = before
+
+          diff = subprocess.check_output(
+              ["git", "diff", "--unified=0", "--no-ext-diff", "--diff-filter=ACMR", base, head, "--"],
+              text=True, errors="replace"
+          )
+          forbidden = {chr(code) for code in (0x2012, 0x2013, 0x2014, 0x2015)}
+          path = "<unknown>"
+          violations = []
+          for line in diff.splitlines():
+              if line.startswith("+++ b/"):
+                  path = line[6:]
+              elif line.startswith("+") and not line.startswith("+++"):
+                  bad = sorted({f"U+{ord(ch):04X}" for ch in line[1:] if ch in forbidden})
+                  if bad:
+                      violations.append((path, ", ".join(bad)))
+          for path, chars in violations[:50]:
+              print(f"::error file={path}::Forbidden Unicode long dash ({chars}) in added text. Use ASCII hyphen-minus U+002D.")
+          if violations:
+              print(f"BLOCKED: {len(violations)} added lines contain forbidden punctuation.")
+              sys.exit(1)
+          print("PASS: no forbidden Unicode long dashes in added text.")
+          PY
